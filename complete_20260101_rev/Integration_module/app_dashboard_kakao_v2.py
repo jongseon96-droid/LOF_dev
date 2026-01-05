@@ -41,28 +41,38 @@ except ImportError as e:
     st.error(f"❌ 모듈 로드 실패: {e}\n\n폴더 구조와 __init__.py 파일을 확인해주세요.")
     st.stop()
 
-st.set_page_config(page_title="LOF Dashboard (Real Map Matching)", layout="wide")
+st.set_page_config(page_title="LOF Dashboard", layout="wide")
 
 # =========================================================
-# 🎨 [추가됨] 색상 테마 설정 (여기서 색상을 관리하세요)
+# 🎨 [추가됨] 색상 테마 설정
 # =========================================================
 COLOR_THEMES = {
     "Version 1 (기본 - Green)": {
-        "region_fill": "#55A546",       # 구역 채우기 색
-        "region_stroke": "#55A546",     # 구역 테두리 색
-        "line_color": "#55A546",        # 이동 경로 선 색
-        "exist_stay_hull": "#FF0000",   # 기존 체류지(Hull) 색
-        "exist_stay_normal": "#000000", # 기존 체류지(일반) 색
-        "new_input_line": "#FF0000",    # 사용자 입력 경로(점선) 색
-        "bg_opacity": 0.2               # 구역 투명도
+        "region_fill": "#55A546",       
+        "region_stroke": "#55A546",     
+        "line_color": "#55A546",        
+        "exist_stay_hull": "#FF0000",   
+        "exist_stay_normal": "#000000", 
+        "new_input_line": "#FF0000",    
+        "bg_opacity": 0.2               
+    },
+    # 👇 [요청하신 색상 조합]
+    "Custom Palette (User Choice)": {
+        "region_fill": "#A0D459",       # 연두색 (Sub) - 구역 채우기
+        "region_stroke": "#55A546",     # 진한 초록 (Main) - 테두리
+        "line_color": "#55A546",        # 진한 초록 (Main) - 경로
+        "exist_stay_hull": "#FA8910",   # 오렌지 (Accent) - 강조 포인트
+        "exist_stay_normal": "#000000", 
+        "new_input_line": "#FA8910",    # 오렌지 (Accent) - 입력 경로
+        "bg_opacity": 0.3               # 연두색이라 투명도를 살짝 올림
     },
     "Version 2 (Blue - Cool)": {
         "region_fill": "#3B82F6",
         "region_stroke": "#1D4ED8",
         "line_color": "#2563EB",
-        "exist_stay_hull": "#F59E0B",   # 주황색 포인트
+        "exist_stay_hull": "#F59E0B",   
         "exist_stay_normal": "#1E293B",
-        "new_input_line": "#EC4899",    # 핑크색 점선
+        "new_input_line": "#EC4899",    
         "bg_opacity": 0.2
     },
     "Version 3 (Orange - Minimal)": {
@@ -361,12 +371,13 @@ def main():
     grouped_lines = original_results.get('final_grouped_lines', [])
 
     # -----------------------------------------------------
-    # 🎨 [추가됨] Color Theme Selection (사이드바)
+    # 🎨 Color Theme Selection (사이드바)
     # -----------------------------------------------------
     st.sidebar.header("🎨 Map Theme")
     theme_names = list(COLOR_THEMES.keys())
-    selected_theme_name = st.sidebar.selectbox("Select Theme", theme_names, index=0)
-    current_theme = COLOR_THEMES[selected_theme_name] # 선택된 테마 데이터 로드
+    # 기본값을 새로 만든 'Custom Palette' (인덱스 1)로 설정
+    selected_theme_name = st.sidebar.selectbox("Select Theme", theme_names, index=1)
+    current_theme = COLOR_THEMES[selected_theme_name] 
 
     # -----------------------------------------------------
     # 👁️ Visibility Settings
@@ -447,6 +458,37 @@ def main():
         for i, (lat, lon) in enumerate(target_points):
             s = scores[i]
             lof_points_data.append({"lat": lat, "lon": lon, "score": float(s), "color": get_lof_color_hex(s, lof_threshold)})
+
+    # ------------------------------------------------------------------
+    # 🎨 [추가됨] 상단 컬러 팔레트 시각화 바 (User Request)
+    # ------------------------------------------------------------------
+    # 사용자가 선택한 색상을 바 형태로 보여줌 (Main, Sub, Accent)
+    # Custom Palette가 선택되었을 때 가장 효과적임
+    st.markdown(f"""
+    <div style="
+        display: flex; 
+        flex-direction: row; 
+        border-radius: 10px; 
+        overflow: hidden; 
+        margin-bottom: 20px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        font-family: sans-serif;
+        font-weight: bold;
+        color: white;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    ">
+        <div style="flex: 1; background-color: {current_theme['region_stroke']}; padding: 15px; text-align: center;">
+            Main<br><span style="font-size:0.8em; opacity:0.9;">{current_theme['region_stroke']}</span>
+        </div>
+        <div style="flex: 1; background-color: {current_theme['region_fill']}; padding: 15px; text-align: center; color: #333; text-shadow: none;">
+            Sub (Fill)<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['region_fill']}</span>
+        </div>
+        <div style="flex: 1; background-color: {current_theme['exist_stay_hull']}; padding: 15px; text-align: center;">
+            Accent<br><span style="font-size:0.8em; opacity:0.9;">{current_theme['exist_stay_hull']}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    # ------------------------------------------------------------------
 
     # 🇰🇷 HTML 생성 (theme 전달)
     html_code = generate_kakao_html(
