@@ -65,10 +65,10 @@ COLOR_THEMES = {
         "new_input_line": "#EC4899",    # 핑크색 점선
         "bg_opacity": 0.15
     },
-    "Version 3 (Dark/Gray - Minimal)": {
-        "region_fill": "#64748B",
-        "region_stroke": "#475569",
-        "line_color": "#334155",
+    "Version 3 (Orange - Minimal)": {
+        "region_fill": "#FA8910",
+        "region_stroke": "#FA8910",
+        "line_color": "#FA8910",
         "exist_stay_hull": "#EF4444",
         "exist_stay_normal": "#000000",
         "new_input_line": "#000000",
