@@ -56,16 +56,6 @@ COLOR_THEMES = {
         "new_input_line": "#FF0000",    
         "bg_opacity": 0.2               
     },
-    # 👇 [요청하신 색상 조합]
-    "Custom Palette (User Choice)": {
-        "region_fill": "#A0D459",       # 연두색 (Sub) - 구역 채우기
-        "region_stroke": "#55A546",     # 진한 초록 (Main) - 테두리
-        "line_color": "#55A546",        # 진한 초록 (Main) - 경로
-        "exist_stay_hull": "#FA8910",   # 오렌지 (Accent) - 강조 포인트
-        "exist_stay_normal": "#000000", 
-        "new_input_line": "#FA8910",    # 오렌지 (Accent) - 입력 경로
-        "bg_opacity": 0.3               # 연두색이라 투명도를 살짝 올림
-    },
     "Version 2 (Blue - Cool)": {
         "region_fill": "#3B82F6",
         "region_stroke": "#1D4ED8",
