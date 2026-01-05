@@ -323,7 +323,7 @@ def calculate_realtime_lof(train_df, test_points, n_neighbors):
     return 1.0 - lof.decision_function(X_test_scaled)
 
 # =========================================================
-# 🖥️ 메인 앱 UI
+# 🖥️ 메인 앱 UI (Color Picker 추가됨)
 # =========================================================
 def main():
     st.title("🛰️ LOF Dashboard (Real Map Matching)")
@@ -344,11 +344,8 @@ def main():
     original_results = data.get('original_path_results', {})
     region_data = data.get('region_data', {})
     
-    # ---------------------------------------------------------
-    # 🛠️ CSV 파일 경로 찾기 로직
-    # ---------------------------------------------------------
+    # CSV 경로 로직
     csv_path = os.path.abspath(os.path.join(path_module_dir, "..", "..", "common_csv", "stay_regions.csv"))
-    
     if os.path.exists(csv_path):
         regions_df = path_dl.load_regions(csv_path)
     else:
@@ -356,11 +353,8 @@ def main():
         if os.path.exists(csv_path_fallback):
             regions_df = path_dl.load_regions(csv_path_fallback)
         else:
-            st.warning(f"⚠️ 'stay_regions.csv' 파일을 찾을 수 없습니다.\n검색 경로: {csv_path}")
-            if 'regions_df' in original_results:
-                regions_df = original_results['regions_df']
-            else:
-                regions_df = pd.DataFrame()
+            st.warning("csv 파일 없음") # 간략화
+            regions_df = original_results.get('regions_df', pd.DataFrame())
 
     init_poly_df = region_data.get('poly_df', pd.DataFrame())
     init_sample_df = region_data.get('region_sample_df', pd.DataFrame())
@@ -371,16 +365,48 @@ def main():
     grouped_lines = original_results.get('final_grouped_lines', [])
 
     # -----------------------------------------------------
-    # 🎨 Color Theme Selection (사이드바)
+    # 🎨 [업그레이드] Map Theme (프리셋 + 커스텀 에디터)
     # -----------------------------------------------------
     st.sidebar.header("🎨 Map Theme")
+    
+    # 1. 기본 프리셋 선택
     theme_names = list(COLOR_THEMES.keys())
-    # 기본값을 새로 만든 'Custom Palette' (인덱스 1)로 설정
-    selected_theme_name = st.sidebar.selectbox("Select Theme", theme_names, index=1)
-    current_theme = COLOR_THEMES[selected_theme_name] 
+    selected_theme_name = st.sidebar.selectbox("기본 테마 선택", theme_names, index=1)
+    base_theme = COLOR_THEMES[selected_theme_name]
+    
+    # 2. 커스텀 모드 스위치
+    use_custom_color = st.sidebar.checkbox("🛠️ 색상 직접 편집하기", value=False)
+    
+    if use_custom_color:
+        st.sidebar.markdown("##### 👇 원하는 색을 직접 고르세요!")
+        col1, col2 = st.sidebar.columns(2)
+        
+        # 사용자가 색상 직접 선택 (기본값은 선택된 테마의 색상)
+        c_fill = col1.color_picker("구역 채우기", base_theme['region_fill'])
+        c_stroke = col2.color_picker("구역 테두리", base_theme['region_stroke'])
+        
+        c_line = col1.color_picker("이동 경로", base_theme['line_color'])
+        c_accent = col2.color_picker("강조 포인트", base_theme['exist_stay_hull'])
+        
+        # 투명도는 슬라이더로 조절
+        c_opacity = st.sidebar.slider("구역 투명도", 0.0, 1.0, base_theme['bg_opacity'], 0.05)
+        
+        # 현재 테마를 사용자 설정값으로 덮어쓰기
+        current_theme = {
+            "region_fill": c_fill,
+            "region_stroke": c_stroke,
+            "line_color": c_line,
+            "exist_stay_hull": c_accent,
+            "exist_stay_normal": "#000000",
+            "new_input_line": c_accent,
+            "bg_opacity": c_opacity
+        }
+    else:
+        # 체크 안 하면 그냥 프리셋 사용
+        current_theme = base_theme
 
     # -----------------------------------------------------
-    # 👁️ Visibility Settings
+    # 👁️ Visibility Settings (이하 동일)
     # -----------------------------------------------------
     st.sidebar.markdown("---")
     st.sidebar.header("👁️ Visibility Settings")
@@ -392,9 +418,6 @@ def main():
         'show_new_stay': st.sidebar.checkbox("Show New Stay Points", False)
     }
 
-    # -----------------------------------------------------
-    # 🔧 Parameters & Simulation
-    # -----------------------------------------------------
     st.sidebar.markdown("---")
     n_neighbors = st.sidebar.slider("LOF Neighbors (k)", 5, 100, 30, 5)
     lof_threshold = st.sidebar.slider("Anomaly Threshold", 1.0, 2.0, 1.2, 0.05)
@@ -408,7 +431,6 @@ def main():
         if st.form_submit_button("데이터 추가"):
             if sim_type == "Path Point (이동)":
                         st.session_state.new_path_data.append([lat_in, lon_in])
-                        
                         if len(path_points) > 0:
                             last_existing_point = path_points[-1] 
                             points_to_route = [last_existing_point] + st.session_state.new_path_data
@@ -419,13 +441,11 @@ def main():
                             with st.spinner("Running OSMnx Map Matching..."):
                                 matched = run_path_module_realtime(regions_df, points_to_route)
                                 st.session_state.new_matched_line = matched
-                                if matched: st.success("기존 경로와 연결 성공! (연두색 실선)")
-                                else: st.warning("매칭 실패 (도로를 찾을 수 없음)")
+                                if matched: st.success("매칭 성공!")
+                                else: st.warning("매칭 실패")
                         else:
-                            st.info("점을 하나 더 추가해야 경로가 생성됩니다.")
-                            
+                            st.info("점 추가 필요")
                         st.rerun()
-
             else:
                 st.session_state.new_stay_data.append([lat_in, lon_in])
                 with st.spinner("Running Region Update..."):
@@ -443,11 +463,10 @@ def main():
         st.session_state.new_matched_line = None
         st.rerun()
 
-    # 🔄 데이터 준비
+    # 🔄 데이터 준비 및 LOF 계산
     current_poly_df = st.session_state.updated_poly_df if st.session_state.updated_poly_df is not None else init_poly_df
     current_sample_df = st.session_state.updated_sample_df if st.session_state.updated_sample_df is not None else init_sample_df
     
-    # LOF 계산
     base_train = current_sample_df[['latitude', 'longitude']].values.tolist() + path_points
     train_df = pd.DataFrame(base_train, columns=['latitude', 'longitude'])
     target_points = path_points + st.session_state.new_path_data
@@ -460,48 +479,29 @@ def main():
             lof_points_data.append({"lat": lat, "lon": lon, "score": float(s), "color": get_lof_color_hex(s, lof_threshold)})
 
     # ------------------------------------------------------------------
-    # 🎨 [추가됨] 상단 컬러 팔레트 시각화 바 (User Request)
+    # 🎨 상단 컬러바 (실시간 반영)
     # ------------------------------------------------------------------
-    # 사용자가 선택한 색상을 바 형태로 보여줌 (Main, Sub, Accent)
-    # Custom Palette가 선택되었을 때 가장 효과적임
     st.markdown(f"""
-    <div style="
-        display: flex; 
-        flex-direction: row; 
-        border-radius: 10px; 
-        overflow: hidden; 
-        margin-bottom: 20px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        font-family: sans-serif;
-        font-weight: bold;
-        color: white;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-    ">
-        <div style="flex: 1; background-color: {current_theme['region_stroke']}; padding: 15px; text-align: center;">
-            Main<br><span style="font-size:0.8em; opacity:0.9;">{current_theme['region_stroke']}</span>
+    <div style="display: flex; flex-direction: row; border-radius: 10px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: white; text-align: center; font-weight: bold; font-family: sans-serif;">
+        <div style="flex: 1; background-color: {current_theme['region_stroke']}; padding: 15px;">
+            Main<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['region_stroke']}</span>
         </div>
-        <div style="flex: 1; background-color: {current_theme['region_fill']}; padding: 15px; text-align: center; color: #333; text-shadow: none;">
+        <div style="flex: 1; background-color: {current_theme['region_fill']}; padding: 15px; color: #333;">
             Sub (Fill)<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['region_fill']}</span>
         </div>
-        <div style="flex: 1; background-color: {current_theme['exist_stay_hull']}; padding: 15px; text-align: center;">
-            Accent<br><span style="font-size:0.8em; opacity:0.9;">{current_theme['exist_stay_hull']}</span>
+        <div style="flex: 1; background-color: {current_theme['exist_stay_hull']}; padding: 15px;">
+            Accent<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['exist_stay_hull']}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    # ------------------------------------------------------------------
 
-    # 🇰🇷 HTML 생성 (theme 전달)
+    # HTML 생성
     html_code = generate_kakao_html(
         center_coords[0], center_coords[1],
-        current_poly_df,
-        raw_stay_df,
-        grouped_lines,
-        st.session_state.new_matched_line, 
-        lof_points_data,
-        st.session_state.new_path_data,
-        st.session_state.new_stay_data,
-        vis_options,
-        current_theme # 👈 선택된 테마 전달
+        current_poly_df, raw_stay_df, grouped_lines,
+        st.session_state.new_matched_line, lof_points_data,
+        st.session_state.new_path_data, st.session_state.new_stay_data,
+        vis_options, current_theme
     )
     
     components.html(html_code, height=800)
