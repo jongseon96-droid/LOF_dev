@@ -36,10 +36,11 @@ try:
     import Path_module.graph_manager as path_gm
     import Path_module.matcher as path_matcher
     
-    
+     
 except ImportError as e:
     st.error(f"❌ 모듈 로드 실패: {e}\n\n폴더 구조와 __init__.py 파일을 확인해주세요.")
     st.stop()
+st.set_page_config(page_title="LOF Dashboard (Real Map Matching)", layout="wide")
 
 # =========================================================
 # 🔑 카카오 API 키
@@ -55,7 +56,6 @@ except Exception as e:
 # =========================================================
 # ⚙️ 설정 및 데이터 로드
 # =========================================================
-st.set_page_config(page_title="LOF Dashboard (Real Map Matching)", layout="wide")
 
 path_case_1 = os.path.join(current_dir, "analysis_cache.pkl")
 path_case_2 = os.path.join(parent_dir, "analysis_cache.pkl")
