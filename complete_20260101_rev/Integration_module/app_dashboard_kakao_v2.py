@@ -9,6 +9,7 @@ import streamlit.components.v1 as components
 from shapely.geometry import LineString
 from shapely.ops import unary_union
 from shapely.geometry import LineString, MultiLineString
+
 # =========================================================
 # 🛠️ 경로 설정 & 모듈 로드
 # =========================================================
@@ -26,7 +27,7 @@ if path_module_dir not in sys.path: sys.path.append(path_module_dir)
 try:
     from sklearn.neighbors import LocalOutlierFactor
     from sklearn.preprocessing import StandardScaler
-     
+      
     # [Region Module Imports]
     from Region_module.processor import RegionProcessor
     from Region_module.sampler import PointSampler
@@ -35,17 +36,49 @@ try:
     import Path_module.data_loader as path_dl
     import Path_module.graph_manager as path_gm
     import Path_module.matcher as path_matcher
-    
-     
+      
 except ImportError as e:
     st.error(f"❌ 모듈 로드 실패: {e}\n\n폴더 구조와 __init__.py 파일을 확인해주세요.")
     st.stop()
+
 st.set_page_config(page_title="LOF Dashboard (Real Map Matching)", layout="wide")
+
+# =========================================================
+# 🎨 [추가됨] 색상 테마 설정 (여기서 색상을 관리하세요)
+# =========================================================
+COLOR_THEMES = {
+    "Version 1 (기본 - Green)": {
+        "region_fill": "#55A546",       # 구역 채우기 색
+        "region_stroke": "#55A546",     # 구역 테두리 색
+        "line_color": "#55A546",        # 이동 경로 선 색
+        "exist_stay_hull": "#FF0000",   # 기존 체류지(Hull) 색
+        "exist_stay_normal": "#000000", # 기존 체류지(일반) 색
+        "new_input_line": "#FF0000",    # 사용자 입력 경로(점선) 색
+        "bg_opacity": 0.2               # 구역 투명도
+    },
+    "Version 2 (Blue - Cool)": {
+        "region_fill": "#3B82F6",
+        "region_stroke": "#1D4ED8",
+        "line_color": "#2563EB",
+        "exist_stay_hull": "#F59E0B",   # 주황색 포인트
+        "exist_stay_normal": "#1E293B",
+        "new_input_line": "#EC4899",    # 핑크색 점선
+        "bg_opacity": 0.15
+    },
+    "Version 3 (Dark/Gray - Minimal)": {
+        "region_fill": "#64748B",
+        "region_stroke": "#475569",
+        "line_color": "#334155",
+        "exist_stay_hull": "#EF4444",
+        "exist_stay_normal": "#000000",
+        "new_input_line": "#000000",
+        "bg_opacity": 0.1
+    }
+}
 
 # =========================================================
 # 🔑 카카오 API 키
 # =========================================================
-#KAKAO_API_KEY = "c35cce22633084bc711c74ef0696d1cc"
 try:
     # secrets.toml 파일이나 Streamlit Cloud의 Secrets 설정에서 가져옴
     KAKAO_API_KEY = st.secrets["kakao"]["api_key"]
@@ -53,10 +86,10 @@ except Exception as e:
     # 키가 없으면 에러 메시지를 띄우고 앱 중단
     st.error(f"❌ 카카오 API 키를 찾을 수 없습니다. secrets 설정을 확인해주세요.\n에러 내용: {e}")
     st.stop()
+
 # =========================================================
 # ⚙️ 설정 및 데이터 로드
 # =========================================================
-
 path_case_1 = os.path.join(current_dir, "analysis_cache.pkl")
 path_case_2 = os.path.join(parent_dir, "analysis_cache.pkl")
 CACHE_FILE = path_case_1 if os.path.exists(path_case_1) else (path_case_2 if os.path.exists(path_case_2) else None)
@@ -70,7 +103,6 @@ def load_analysis_data(cache_path):
 # =========================================================
 # 🔄 [핵심] 모듈 실행 함수들 (Region + Path)
 # =========================================================
-
 def run_region_module_update(raw_stay_df, new_points):
     """Region 모듈: DBSCAN 재연산"""
     new_df = pd.DataFrame(new_points, columns=['centroid_lat', 'centroid_lon'])
@@ -87,12 +119,7 @@ def run_region_module_update(raw_stay_df, new_points):
     return poly_df, sample_df
 
 def run_path_module_realtime(regions_df, new_points_latlon):
-    """
-    [Path Module 연동]
-    사용자가 찍은 점(Lat, Lon)을 입력받아
-    Path_module의 로직(Region찾기 -> 그래프다운 -> 맵매칭)을 수행하여
-    도로 위에 매칭된 LineString을 반환합니다.
-    """
+    """Path 모듈: 맵매칭"""
     if len(new_points_latlon) < 2:
         return None
 
@@ -119,14 +146,15 @@ def run_path_module_realtime(regions_df, new_points_latlon):
         return None
 
 # =========================================================
-# 🇰🇷 카카오지도 HTML 생성
+# 🇰🇷 카카오지도 HTML 생성 (테마 적용 수정됨)
 # =========================================================
 def generate_kakao_html(center_lat, center_lon, 
                         regions_df, raw_stay_df, 
                         path_lines, new_matched_line, 
                         lof_points, 
                         new_path_points, new_stay_points,
-                        vis_options):
+                        vis_options,
+                        theme): # 👈 theme 파라미터 추가
     
     # 1. Regions (Polygon)
     regions_data = []
@@ -144,45 +172,29 @@ def generate_kakao_html(center_lat, center_lon,
             lon = r.get('centroid_lon', r.get('longitude'))
             existing_stay_data.append({"lat": lat, "lon": lon, "is_hull": r['is_hull']})
 
-    # ==============================================================================
-    # 🛠️ [기하학적 해결] 3. Path Lines - Union 적용 (겹침 제거)
-    # ==============================================================================
+    # 3. Path Lines (Union)
     lines_data = []
     if vis_options['show_lines']:
         all_lines_to_merge = []
-        
-        # (1) 기존 Path Lines 수집 (path_lines는 그룹화된 리스트 구조임)
         if path_lines:
             for group in path_lines:
                 for line in group:
                     if line and not line.is_empty:
                         all_lines_to_merge.append(line)
-        
-        # (2) 새로 매칭된 라인(Simulation)이 있으면 추가
         if new_matched_line and not new_matched_line.is_empty:
             all_lines_to_merge.append(new_matched_line)
             
-        # (3) 기하학적 병합 (Unary Union) 수행
-        # -> 수천 개의 선을 겹치지 않는 최소한의 선으로 통합합니다.
         if all_lines_to_merge:
             merged_geom = unary_union(all_lines_to_merge)
-            
-            # 결과가 LineString 하나일 수도 있고, MultiLineString(여러 개)일 수도 있음
             final_lines = []
-            if isinstance(merged_geom, LineString):
-                final_lines = [merged_geom]
-            elif isinstance(merged_geom, MultiLineString):
-                final_lines = list(merged_geom.geoms)
-            
-            # (4) 좌표 변환 (Shapely: lon,lat -> Kakao: lat,lon)
+            if isinstance(merged_geom, LineString): final_lines = [merged_geom]
+            elif isinstance(merged_geom, MultiLineString): final_lines = list(merged_geom.geoms)
             for line in final_lines:
                 coords = [[lat, lon] for lon, lat in line.coords]
                 lines_data.append(coords)
 
-    # 4. LOF Points
+    # 4. LOF & 5. New Stay
     points_data = lof_points if vis_options['show_lof'] else []
-
-    # 5. New Stay Points
     new_stay_data = new_stay_points if vis_options['show_new_stay'] else []
 
     html = f"""
@@ -197,74 +209,82 @@ def generate_kakao_html(center_lat, center_lon,
         <div id="map"></div>
         <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={KAKAO_API_KEY}&autoload=false"></script>
         <script>
-            // 지도가 완전히 로드된 후 실행 (Mixed Content 및 undefined 에러 방지)
             kakao.maps.load(function() {{
                 var container = document.getElementById('map');
                 var options = {{ center: new kakao.maps.LatLng({center_lat}, {center_lon}), level: 4 }};
                 var map = new kakao.maps.Map(container, options);
-            // 1. Regions
-            var regions = {json.dumps(regions_data)};
-            regions.forEach(function(r) {{
-                var path = r.path.map(c => new kakao.maps.LatLng(c[0], c[1]));
-                new kakao.maps.Polygon({{
-                    map: map, path: path,
-                    strokeWeight: 1, strokeColor: '#55A546', strokeOpacity: 1, 
-                    fillColor: '#55A546', fillOpacity: 0.2 
+                
+                // 1. Regions (테마 적용)
+                var regions = {json.dumps(regions_data)};
+                regions.forEach(function(r) {{
+                    var path = r.path.map(c => new kakao.maps.LatLng(c[0], c[1]));
+                    new kakao.maps.Polygon({{
+                        map: map, path: path,
+                        strokeWeight: 1, 
+                        strokeColor: '{theme['region_stroke']}', 
+                        strokeOpacity: 1, 
+                        fillColor: '{theme['region_fill']}', 
+                        fillOpacity: {theme['bg_opacity']} 
+                    }});
                 }});
-            }});
-            
-            // 2. Existing Stay
-            var existStay = {json.dumps(existing_stay_data)};
-            existStay.forEach(function(p) {{
-                var color = p.is_hull ? '#FF0000' : '#000000';
-                var radius = p.is_hull ? 3 : 2;
-                new kakao.maps.Circle({{
-                    map: map, center: new kakao.maps.LatLng(p.lat, p.lon), radius: radius,
-                    strokeColor: color, strokeOpacity: 0.8, fillColor: color, fillOpacity: 0.6
+                
+                // 2. Existing Stay (테마 적용)
+                var existStay = {json.dumps(existing_stay_data)};
+                existStay.forEach(function(p) {{
+                    var color = p.is_hull ? '{theme['exist_stay_hull']}' : '{theme['exist_stay_normal']}';
+                    var radius = p.is_hull ? 3 : 2;
+                    new kakao.maps.Circle({{
+                        map: map, center: new kakao.maps.LatLng(p.lat, p.lon), radius: radius,
+                        strokeColor: color, strokeOpacity: 0.8, fillColor: color, fillOpacity: 0.6
+                    }});
                 }});
-            }});
 
-            // 3. New Stay
-            var newStay = {json.dumps(new_stay_data)};
-            newStay.forEach(function(p) {{
-                 var marker = new kakao.maps.Marker({{ position: new kakao.maps.LatLng(p[0], p[1]) }});
-                 marker.setMap(map);
-            }});
-            
-            // 4. Path Lines
-            var lines = {json.dumps(lines_data)};
-            lines.forEach(function(linePath) {{
-                var path = linePath.map(c => new kakao.maps.LatLng(c[0], c[1]));
-                new kakao.maps.Polyline({{
-                    map: map, path: path,
-                    strokeWeight: 2, strokeColor: '#55A546', strokeOpacity: 0.8 
+                // 3. New Stay
+                var newStay = {json.dumps(new_stay_data)};
+                newStay.forEach(function(p) {{
+                     var marker = new kakao.maps.Marker({{ position: new kakao.maps.LatLng(p[0], p[1]) }});
+                     marker.setMap(map);
                 }});
-            }});
-            
-            // 5. LOF Points
-            var points = {json.dumps(points_data)};
-            points.forEach(function(p) {{
-                var circle = new kakao.maps.Circle({{
-                    map: map, center: new kakao.maps.LatLng(p.lat, p.lon), radius: 5,
-                    strokeColor: '#000000', strokeOpacity: 0.5, fillColor: p.color, fillOpacity: 0.9
+                
+                // 4. Path Lines (테마 적용)
+                var lines = {json.dumps(lines_data)};
+                lines.forEach(function(linePath) {{
+                    var path = linePath.map(c => new kakao.maps.LatLng(c[0], c[1]));
+                    new kakao.maps.Polyline({{
+                        map: map, path: path,
+                        strokeWeight: 3, 
+                        strokeColor: '{theme['line_color']}', 
+                        strokeOpacity: 0.6 
+                    }});
                 }});
-            }});
-            
-            // 6. User Input Points (Red Dashed)
-            var newPathPoints = {json.dumps(new_path_points)};
-            if (newPathPoints.length > 1) {{
-                var path = newPathPoints.map(c => new kakao.maps.LatLng(c[0], c[1]));
-                new kakao.maps.Polyline({{
-                    map: map, path: path,
-                    strokeWeight: 5, strokeColor: '#FF0000', strokeOpacity: 0.8, strokeStyle: 'shortdash'
+                
+                // 5. LOF Points
+                var points = {json.dumps(points_data)};
+                points.forEach(function(p) {{
+                    var circle = new kakao.maps.Circle({{
+                        map: map, center: new kakao.maps.LatLng(p.lat, p.lon), radius: 5,
+                        strokeColor: '#000000', strokeOpacity: 0.5, fillColor: p.color, fillOpacity: 0.9
+                    }});
                 }});
-            }}
-            
-            var mapTypeControl = new kakao.maps.MapTypeControl();
-            map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
-            var zoomControl = new kakao.maps.ZoomControl();
-            map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
-            }});
+                
+                // 6. User Input Points (테마 적용)
+                var newPathPoints = {json.dumps(new_path_points)};
+                if (newPathPoints.length > 1) {{
+                    var path = newPathPoints.map(c => new kakao.maps.LatLng(c[0], c[1]));
+                    new kakao.maps.Polyline({{
+                        map: map, path: path,
+                        strokeWeight: 5, 
+                        strokeColor: '{theme['new_input_line']}', 
+                        strokeOpacity: 0.8, strokeStyle: 'shortdash'
+                    }});
+                }}
+                
+                var mapTypeControl = new kakao.maps.MapTypeControl();
+                map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
+                var zoomControl = new kakao.maps.ZoomControl();
+                map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+
+            }}); 
         </script>
     </body>
     </html>
@@ -315,22 +335,18 @@ def main():
     region_data = data.get('region_data', {})
     
     # ---------------------------------------------------------
-    # 🛠️ [수정됨] CSV 파일 경로 찾기 로직
+    # 🛠️ CSV 파일 경로 찾기 로직
     # ---------------------------------------------------------
-    # Path_module 기준으로 상위(complete) -> 상위(LOF_dev) -> common_csv 순으로 이동해야 함
-    # 경로: .../LOF_dev/common_csv/stay_regions.csv
     csv_path = os.path.abspath(os.path.join(path_module_dir, "..", "..", "common_csv", "stay_regions.csv"))
     
     if os.path.exists(csv_path):
         regions_df = path_dl.load_regions(csv_path)
     else:
-        # Fallback: 혹시 구조가 다를 경우 한 단계 위도 체크
         csv_path_fallback = os.path.abspath(os.path.join(path_module_dir, "..", "common_csv", "stay_regions.csv"))
         if os.path.exists(csv_path_fallback):
             regions_df = path_dl.load_regions(csv_path_fallback)
         else:
             st.warning(f"⚠️ 'stay_regions.csv' 파일을 찾을 수 없습니다.\n검색 경로: {csv_path}")
-            # 파일이 없으면 pkl에서 가져오거나 빈 DF 생성
             if 'regions_df' in original_results:
                 regions_df = original_results['regions_df']
             else:
@@ -345,8 +361,17 @@ def main():
     grouped_lines = original_results.get('final_grouped_lines', [])
 
     # -----------------------------------------------------
+    # 🎨 [추가됨] Color Theme Selection (사이드바)
+    # -----------------------------------------------------
+    st.sidebar.header("🎨 Map Theme")
+    theme_names = list(COLOR_THEMES.keys())
+    selected_theme_name = st.sidebar.selectbox("Select Theme", theme_names, index=0)
+    current_theme = COLOR_THEMES[selected_theme_name] # 선택된 테마 데이터 로드
+
+    # -----------------------------------------------------
     # 👁️ Visibility Settings
     # -----------------------------------------------------
+    st.sidebar.markdown("---")
     st.sidebar.header("👁️ Visibility Settings")
     vis_options = {
         'show_regions': st.sidebar.checkbox("Show Regions", True),
@@ -366,7 +391,6 @@ def main():
     st.sidebar.header("➕ Data Simulation")
     with st.sidebar.form("sim_form"):
         sim_type = st.radio("추가할 데이터 타입", ["Path Point (이동)", "Stay Point (정상구역)"])
-        last_pt = path_points[-1] if len(path_points) > 0 else center_coords
         lat_in = st.number_input("Latitude", value=center_coords[0], format="%.5f")
         lon_in = st.number_input("Longitude", value=center_coords[1], format="%.5f")
         
@@ -374,19 +398,12 @@ def main():
             if sim_type == "Path Point (이동)":
                         st.session_state.new_path_data.append([lat_in, lon_in])
                         
-                        # 🔥 [수정됨] 기존 경로의 끝점과 새 점들을 연결!
                         if len(path_points) > 0:
-                            # 1. 기존 데이터의 마지막 점 가져오기 (End Point)
-                            last_existing_point = path_points[-1] # [lat, lon]
-                            
-                            # 2. [마지막 점] + [새로 찍은 점들]을 합쳐서 매칭 요청
-                            # 이렇게 해야 끊어지지 않고 이어집니다.
+                            last_existing_point = path_points[-1] 
                             points_to_route = [last_existing_point] + st.session_state.new_path_data
                         else:
-                            # 기존 데이터가 하나도 없으면 그냥 새 점만 사용
                             points_to_route = st.session_state.new_path_data
 
-                        # 🔥 [Path Module 사용] 실시간 맵매칭
                         if len(points_to_route) >= 2:
                             with st.spinner("Running OSMnx Map Matching..."):
                                 matched = run_path_module_realtime(regions_df, points_to_route)
@@ -400,7 +417,6 @@ def main():
 
             else:
                 st.session_state.new_stay_data.append([lat_in, lon_in])
-                # [Region Module 사용]
                 with st.spinner("Running Region Update..."):
                     new_poly, new_sample = run_region_module_update(raw_stay_df, st.session_state.new_stay_data)
                     st.session_state.updated_poly_df = new_poly
@@ -432,17 +448,18 @@ def main():
             s = scores[i]
             lof_points_data.append({"lat": lat, "lon": lon, "score": float(s), "color": get_lof_color_hex(s, lof_threshold)})
 
-    # 🇰🇷 HTML 생성
+    # 🇰🇷 HTML 생성 (theme 전달)
     html_code = generate_kakao_html(
         center_coords[0], center_coords[1],
         current_poly_df,
         raw_stay_df,
         grouped_lines,
-        st.session_state.new_matched_line, # 새로 매칭된 라인 전달
+        st.session_state.new_matched_line, 
         lof_points_data,
         st.session_state.new_path_data,
         st.session_state.new_stay_data,
-        vis_options
+        vis_options,
+        current_theme # 👈 선택된 테마 전달
     )
     
     components.html(html_code, height=800)
