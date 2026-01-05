@@ -471,19 +471,6 @@ def main():
     # ------------------------------------------------------------------
     # 🎨 상단 컬러바 (실시간 반영)
     # ------------------------------------------------------------------
-    st.markdown(f"""
-    <div style="display: flex; flex-direction: row; border-radius: 10px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: white; text-align: center; font-weight: bold; font-family: sans-serif;">
-        <div style="flex: 1; background-color: {current_theme['region_stroke']}; padding: 15px;">
-            Main<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['region_stroke']}</span>
-        </div>
-        <div style="flex: 1; background-color: {current_theme['region_fill']}; padding: 15px; color: #333;">
-            Sub (Fill)<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['region_fill']}</span>
-        </div>
-        <div style="flex: 1; background-color: {current_theme['exist_stay_hull']}; padding: 15px;">
-            Accent<br><span style="font-size:0.8em; opacity:0.8;">{current_theme['exist_stay_hull']}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     # HTML 생성
     html_code = generate_kakao_html(
