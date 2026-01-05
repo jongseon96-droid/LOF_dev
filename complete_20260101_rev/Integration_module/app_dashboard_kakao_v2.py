@@ -237,7 +237,7 @@ def generate_kakao_html(center_lat, center_lon,
                 var path = linePath.map(c => new kakao.maps.LatLng(c[0], c[1]));
                 new kakao.maps.Polyline({{
                     map: map, path: path,
-                    strokeWeight: 3, strokeColor: '#55A546', strokeOpacity: 0.8 
+                    strokeWeight: 2, strokeColor: '#55A546', strokeOpacity: 0.8 
                 }});
             }});
             
