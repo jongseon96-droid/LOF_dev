@@ -194,12 +194,13 @@ def generate_kakao_html(center_lat, center_lon,
     </head>
     <body>
         <div id="map"></div>
-        <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey={KAKAO_API_KEY}"></script>
+        <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={KAKAO_API_KEY}&autoload=false"></script>
         <script>
-            var container = document.getElementById('map');
-            var options = {{ center: new kakao.maps.LatLng({center_lat}, {center_lon}), level: 4 }};
-            var map = new kakao.maps.Map(container, options);
-            
+            // 지도가 완전히 로드된 후 실행 (Mixed Content 및 undefined 에러 방지)
+            kakao.maps.load(function() {{
+                var container = document.getElementById('map');
+                var options = {{ center: new kakao.maps.LatLng({center_lat}, {center_lon}), level: 4 }};
+                var map = new kakao.maps.Map(container, options);
             // 1. Regions
             var regions = {json.dumps(regions_data)};
             regions.forEach(function(r) {{
@@ -262,6 +263,7 @@ def generate_kakao_html(center_lat, center_lon,
             map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
             var zoomControl = new kakao.maps.ZoomControl();
             map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+            }});
         </script>
     </body>
     </html>
