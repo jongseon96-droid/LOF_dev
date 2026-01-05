@@ -63,7 +63,7 @@ COLOR_THEMES = {
         "exist_stay_hull": "#F59E0B",   # 주황색 포인트
         "exist_stay_normal": "#1E293B",
         "new_input_line": "#EC4899",    # 핑크색 점선
-        "bg_opacity": 0.15
+        "bg_opacity": 0.2
     },
     "Version 3 (Orange - Minimal)": {
         "region_fill": "#FA8910",
@@ -72,7 +72,7 @@ COLOR_THEMES = {
         "exist_stay_hull": "#EF4444",
         "exist_stay_normal": "#000000",
         "new_input_line": "#000000",
-        "bg_opacity": 0.1
+        "bg_opacity": 0.2
     }
 }
 
