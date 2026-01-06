@@ -402,7 +402,7 @@ def main():
     st.sidebar.header("👁️ Visibility Settings")
     vis_options = {
         'show_regions': st.sidebar.checkbox("Show Regions", True),
-        'show_lines': st.sidebar.checkbox("Show Path Lines", True),
+        'show_lines': st.sidebar.checkbox("Show Path Lines", False),
         'show_lof': st.sidebar.checkbox("Show LOF Points", False),
         'show_exist_stay': st.sidebar.checkbox("Show Existing Stay Points", False),
         'show_new_stay': st.sidebar.checkbox("Show New Stay Points", False)
